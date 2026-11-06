@@ -2,8 +2,9 @@
 
 # Arch Linux install - SUGGORATH-PC (plain version: commands only, no checks, no menus)
 #
-# Firmware:   UEFI 64-bit, CSM off, Secure Boot off during the install
-# Disk:       Samsung 970 PRO 512 GB, whole disk erased, GPT
+# Firmware:   UEFI 64-bit, CSM off, Secure Boot in Setup Mode (new install) or off (reinstall) during the install
+# Disk:       Samsung 970 PRO 512 GB, whole disk erased, GPT (KEEP_HOME="yes": partitions and /home kept)
+# Reinstall:  KEEP_HOME="yes" formats only ESP and root, keeps /home, restores the Secure Boot keys from /home
 # Partitions: ESP  1 GiB    FAT32  /efi
 #             root 100 GiB  ext4   /
 #             home rest     ext4   /home
@@ -34,6 +35,7 @@ set -euo pipefail
 
 # --- CONFIG ---
 
+KEEP_HOME="no"
 KEYMAP="us"
 CONSOLE_FONT="ter-232b"
 TARGET_DISK="/dev/disk/by-id/nvme-Samsung_SSD_970_PRO_512GB_SERIAL"
@@ -72,28 +74,35 @@ ping -c 3 ping.archlinux.org
 # Check system clock
 timedatectl
 
-# --- ERASE TARGET DISK ---
+# --- ERASE TARGET DISK (new install only) ---
 
-# Erase file system signatures
-wipefs -a "$TARGET_DISK"
+if [[ "$KEEP_HOME" == "no" ]]; then
+  # Erase file system signatures
+  wipefs -a "$TARGET_DISK"
 
-# Erase partition table
-sgdisk --zap-all "$TARGET_DISK"
+  # Erase partition table
+  sgdisk --zap-all "$TARGET_DISK"
+fi
 
 # --- PARTITIONS ---
 
-# Create partitions
-sgdisk -I \
-  -n 1:0:+"$ESP_SIZE"  -t 1:ef00 -c 1:ARCH_ESP \
-  -n 2:0:+"$ROOT_SIZE" -t 2:8304 -c 2:ARCH_ROOT \
-  -n 3:0:0             -t 3:8302 -c 3:ARCH_HOME \
-  "$TARGET_DISK"
+if [[ "$KEEP_HOME" == "no" ]]; then
+  # Create partitions
+  sgdisk -I \
+    -n 1:0:+"$ESP_SIZE"  -t 1:ef00 -c 1:ARCH_ESP \
+    -n 2:0:+"$ROOT_SIZE" -t 2:8304 -c 2:ARCH_ROOT \
+    -n 3:0:0             -t 3:8302 -c 3:ARCH_HOME \
+    "$TARGET_DISK"
 
-# Reload partition table
-partprobe "$TARGET_DISK"
+  # Reload partition table
+  partprobe "$TARGET_DISK"
 
-# Wait until the new partitions are visible
-udevadm settle
+  # Wait until the new partitions are visible
+  udevadm settle
+else
+  # Check that the existing partitions are there (stops the script if one is missing)
+  ls -l /dev/disk/by-partlabel/ARCH_ESP /dev/disk/by-partlabel/ARCH_ROOT /dev/disk/by-partlabel/ARCH_HOME
+fi
 
 # --- FILE SYSTEMS ---
 
@@ -103,8 +112,10 @@ mkfs.fat -F 32 -n ARCH_ESP /dev/disk/by-partlabel/ARCH_ESP
 # Format root
 mkfs.ext4 -F -L ARCH_ROOT /dev/disk/by-partlabel/ARCH_ROOT
 
-# Format home
-mkfs.ext4 -F -m 1 -L ARCH_HOME /dev/disk/by-partlabel/ARCH_HOME
+# Format home (new install only, a reinstall keeps it)
+if [[ "$KEEP_HOME" == "no" ]]; then
+  mkfs.ext4 -F -m 1 -L ARCH_HOME /dev/disk/by-partlabel/ARCH_HOME
+fi
 
 # --- MOUNT ---
 
@@ -116,6 +127,7 @@ mount --mkdir -o fmask=0177,dmask=0077 /dev/disk/by-partlabel/ARCH_ESP /mnt/efi
 
 # Mount home
 mount --mkdir /dev/disk/by-partlabel/ARCH_HOME /mnt/home
+
 # --- UKI SETUP ---
 
 # Set kernel parameters
@@ -265,7 +277,12 @@ arch-chroot -S /mnt passwd
 arch-chroot -S /mnt pacman -S --noconfirm sudo
 
 # Create user with own group, home directory, admin group wheel and bash
-arch-chroot -S /mnt useradd -m -G wheel -c "$USER_FULL_NAME" -s /bin/bash "$USER_NAME"
+# (reinstall: the home directory already exists, the first user gets UID 1000 again, so the files stay owned)
+if [[ "$KEEP_HOME" == "no" ]]; then
+  arch-chroot -S /mnt useradd -m -G wheel -c "$USER_FULL_NAME" -s /bin/bash "$USER_NAME"
+else
+  arch-chroot -S /mnt useradd -M -G wheel -c "$USER_FULL_NAME" -s /bin/bash "$USER_NAME"
+fi
 
 # Set user password (typed twice, not stored in the script)
 arch-chroot -S /mnt passwd "$USER_NAME"
@@ -461,9 +478,9 @@ EOF
 # Give the recipes to the user (makepkg does not run as root)
 arch-chroot -S /mnt chown -R "$USER_NAME:$USER_NAME" "/home/$USER_NAME/pkgbuilds"
 
-# Build the Brother driver packages
-arch-chroot -S -u "$USER_NAME" /mnt makepkg --dir "/home/$USER_NAME/pkgbuilds/brother-dcp-l2600d"
-arch-chroot -S -u "$USER_NAME" /mnt makepkg --dir "/home/$USER_NAME/pkgbuilds/brscan5"
+# Build the Brother driver packages (-f: build again even if a package from an earlier install is there)
+arch-chroot -S -u "$USER_NAME" /mnt makepkg -f --dir "/home/$USER_NAME/pkgbuilds/brother-dcp-l2600d"
+arch-chroot -S -u "$USER_NAME" /mnt makepkg -f --dir "/home/$USER_NAME/pkgbuilds/brscan5"
 
 # Install the Brother driver packages
 arch-chroot -S /mnt pacman -U --noconfirm \
@@ -485,8 +502,13 @@ arch-chroot -S /mnt bash -c '
 # Install Secure Boot key manager (also signs files on every update)
 arch-chroot -S /mnt pacman -S --noconfirm sbctl
 
-# Create own Secure Boot keys (PK, KEK, db)
-arch-chroot -S /mnt sbctl create-keys
+if [[ "$KEEP_HOME" == "no" ]]; then
+  # Create own Secure Boot keys (PK, KEK, db)
+  arch-chroot -S /mnt sbctl create-keys
+else
+  # Restore the Secure Boot keys of the first install (they are already in the firmware)
+  cp -a /mnt/home/sbctl-keys-backup /mnt/var/lib/sbctl
+fi
 
 # Sign the boot loader before it is copied to the ESP (bootctl prefers the .efi.signed file)
 arch-chroot -S /mnt sbctl sign -s -o /usr/lib/systemd/boot/efi/systemd-bootx64.efi.signed /usr/lib/systemd/boot/efi/systemd-bootx64.efi
@@ -545,7 +567,10 @@ editor                           no
 EOF
 
 # Add "Arch Linux" to the firmware boot menu (F8), Windows stays first in the boot order
-efibootmgr --create-only --disk "$TARGET_DISK" --part 1 --label "Arch Linux" --loader '\EFI\systemd\systemd-bootx64.efi'
+# (reinstall: the entry from the first install still points to the same ESP partition)
+if [[ "$KEEP_HOME" == "no" ]]; then
+  efibootmgr --create-only --disk "$TARGET_DISK" --part 1 --label "Arch Linux" --loader '\EFI\systemd\systemd-bootx64.efi'
+fi
 
 # --- WI-FI (only without the Ethernet cable) ---
 
@@ -584,9 +609,11 @@ arch-chroot -S /mnt mkinitcpio -P
 # Check that every boot file on the ESP is signed
 arch-chroot -S /mnt sbctl verify
 
-# Back up the Secure Boot keys to /home (only root can read them)
-cp -a /mnt/var/lib/sbctl "/mnt/home/sbctl-keys-backup"
-chmod 700 "/mnt/home/sbctl-keys-backup"
+if [[ "$KEEP_HOME" == "no" ]]; then
+  # Back up the Secure Boot keys to /home (only root can read them)
+  cp -a /mnt/var/lib/sbctl "/mnt/home/sbctl-keys-backup"
+  chmod 700 "/mnt/home/sbctl-keys-backup"
 
-# Write own keys + Microsoft and ASUS keys into the firmware (firmware must be in Setup Mode)
-arch-chroot -S /mnt sbctl enroll-keys --microsoft --firmware-builtin
+  # Write own keys + Microsoft and ASUS keys into the firmware (firmware must be in Setup Mode)
+  arch-chroot -S /mnt sbctl enroll-keys --microsoft --firmware-builtin
+fi

@@ -10,5 +10,10 @@ curl -LO https://raw.githubusercontent.com/Suggorath/arch-install/main/install.s
 bash install.sh
 ```
 
-Before starting: put the firmware in Secure Boot Setup Mode (clear the Secure Boot keys in the BIOS).
-The script erases the target disk set in `TARGET_DISK`.
+New install (`KEEP_HOME="no"`, default): put the firmware in Secure Boot Setup Mode first (clear the Secure
+Boot keys in the BIOS). The script erases the target disk set in `TARGET_DISK`, creates its own Secure Boot keys
+and enrolls them together with the Microsoft and firmware keys. Switch Secure Boot on after the install.
+
+Reinstall (`KEEP_HOME="yes"`): switch Secure Boot off in the BIOS (keep the keys), set `KEEP_HOME="yes"` in the
+script (`nano install.sh`) and run it. Only the ESP and root are formatted; `/home` and the Secure Boot keys
+(backup in `/home/sbctl-keys-backup`) are kept. Switch Secure Boot on again afterwards.
