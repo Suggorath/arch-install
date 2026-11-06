@@ -1,0 +1,2 @@
+# Shell scripts run on Linux: always LF line endings in the repository and in checkouts
+*.sh text eol=lf
