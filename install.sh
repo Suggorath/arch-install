@@ -25,6 +25,7 @@
 # Swap:       zram (zram-generator, ram / 2, zstd), zswap.enabled=0, sysctl tuning for zram, no hibernation, no disk swap
 # Extra:      dosfstools, nano, man-db, man-pages, less, bash-completion, pacman-contrib (paccache.timer)
 # SSD:        fstrim.timer (weekly TRIM)
+# Sleep:      suspend and hibernation disabled (sleep.conf.d)
 # NVIDIA:     nvidia-open, lib32-nvidia-utils (multilib), libva-nvidia-driver, nvidia-settings, early loading in the UKI
 # Sound:      PipeWire + WirePlumber, pulse/alsa/jack layers, lib32-pipewire, alsa-utils (no firmware needed)
 # Bluetooth:  bluez, bluez-utils (bluetoothctl), bluez-obex (file transfer), bluetooth.service, default main.conf
@@ -337,6 +338,18 @@ vm.swappiness = 180
 vm.watermark_boost_factor = 0
 vm.watermark_scale_factor = 125
 vm.page-cluster = 0
+EOF
+
+# --- SLEEP ---
+
+# Disable suspend and hibernation (NVIDIA suspend is not set up, no disk swap for hibernation)
+mkdir -p /mnt/etc/systemd/sleep.conf.d
+cat > /mnt/etc/systemd/sleep.conf.d/disable-sleep.conf <<EOF
+[Sleep]
+AllowSuspend=no
+AllowHibernation=no
+AllowHybridSleep=no
+AllowSuspendThenHibernate=no
 EOF
 
 # --- NVIDIA ---
