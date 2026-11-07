@@ -30,6 +30,8 @@
 # NVIDIA:     nvidia-open, lib32-nvidia-utils (multilib), libva-nvidia-driver, nvidia-settings, early loading in the UKI
 # Sound:      PipeWire + WirePlumber, pulse/alsa/jack layers, lib32-pipewire, alsa-utils (no firmware needed)
 # Bluetooth:  bluez, bluez-utils (bluetoothctl), bluez-obex (file transfer), bluetooth.service, default main.conf
+# Desktop:    KDE Plasma (Wayland), Plasma Login Manager, noto-fonts, keyboard us + sk qwerty (Alt+Shift)
+# Apps:       konsole, dolphin, ark (+ 7zip, unrar), kcalc, gwenview, skanpage (OCR slk + eng), firefox
 # Containers: podman (rootless), podman-compose, short image names from docker.io
 # Editor:     zed (+ openbsd-netcat), ~/.config/zed/settings.json "use_podman": true
 # Signing:    systemd-boot (.efi.signed) and UKI signed by sbctl, keys backed up to /home/sbctl-keys-backup
@@ -521,10 +523,41 @@ arch-chroot -S /mnt bash -c '
   wait
 ' _ "$PRINTER_NAME" "$PRINTER_URI"
 
+# --- DESKTOP (KDE PLASMA) ---
+
+# Install the fonts and name the providers pacman would otherwise pick itself
+# (OCR languages for Spectacle and Skanpage: Slovak + English, not the first in the list)
+arch-chroot -S /mnt pacman -S --noconfirm noto-fonts noto-fonts-emoji qt6-multimedia-ffmpeg \
+  tesseract-data-slk tesseract-data-eng
+
+# Install Plasma (plasma-desktop pulls the core, the rest chosen in plasma_packages.md)
+arch-chroot -S /mnt pacman -S --noconfirm plasma-desktop kscreen kinfocenter kwallet-pam \
+  breeze-gtk kde-gtk-config plasma-nm plasma-pa bluedevil print-manager plasma-firewall \
+  spectacle plasma-systemmonitor plasma-login-manager
+
+# Install the applications (terminal, files, archives, calculator, images, scanner, browser)
+arch-chroot -S /mnt pacman -S --noconfirm konsole dolphin ark 7zip unrar kcalc gwenview \
+  skanpage firefox
+
+# Set the graphical keyboard layouts US + Slovak QWERTY, Alt+Shift switches (also on the login screen)
+mkdir -p /mnt/etc/X11/xorg.conf.d
+cat > /mnt/etc/X11/xorg.conf.d/00-keyboard.conf <<EOF
+Section "InputClass"
+        Identifier "system-keyboard"
+        MatchIsKeyboard "on"
+        Option "XkbLayout" "us,sk"
+        Option "XkbVariant" ",qwerty"
+        Option "XkbOptions" "grp:alt_shift_toggle"
+EndSection
+EOF
+
+# Start the Plasma login screen at boot
+arch-chroot -S /mnt systemctl enable plasmalogin.service
+
 # --- CONTAINERS AND EDITOR ---
 
-# Install Podman (rootless containers) and podman-compose (runs compose.yaml files)
-arch-chroot -S /mnt pacman -S --noconfirm podman podman-compose
+# Install Podman (rootless containers), its runtime crun and podman-compose (runs compose.yaml files)
+arch-chroot -S /mnt pacman -S --noconfirm podman crun podman-compose
 
 # Search Docker Hub for short image names (e.g. "postgres" in compose files)
 mkdir -p /mnt/etc/containers/registries.conf.d
