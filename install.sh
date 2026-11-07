@@ -20,6 +20,7 @@
 # Console:    KEYMAP us, FONT ter-232b (terminus-font), also in the UKI (sd-vconsole hook)
 # Hostname:   suggorath-pc (+ /etc/hosts entry), pretty name SUGGORATH-PC, board model in machine-info
 # Network:    NetworkManager (Wi-Fi through wpa_supplicant), DNS through systemd-resolved (stub resolv.conf)
+# Firewall:   firewalld (nftables), default zone public (ssh, dhcpv6-client), no changes
 # Root:       password typed during the install (passwd), root login stays enabled
 # User:       suggorath (UID 1000, own group, wheel, bash), sudo for wheel, password typed during the install
 # Swap:       zram (zram-generator, ram / 2, zstd), zswap.enabled=0, sysctl tuning for zram, no hibernation, no disk swap
@@ -268,6 +269,14 @@ ln -sf ../run/systemd/resolve/stub-resolv.conf /mnt/etc/resolv.conf
 #DNSOverTLS=yes
 #Domains=~.
 #EOF
+
+# --- FIREWALL ---
+
+# Install firewalld (default zone public: only ssh and dhcpv6-client allowed in)
+arch-chroot -S /mnt pacman -S --noconfirm firewalld
+
+# Enable firewalld
+arch-chroot -S /mnt systemctl enable firewalld.service
 
 # --- ROOT PASSWORD ---
 
