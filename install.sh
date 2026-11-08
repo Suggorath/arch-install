@@ -44,7 +44,7 @@ set -euo pipefail
 KEEP_HOME="no"
 KEYMAP="us"
 CONSOLE_FONT="ter-232b"
-TARGET_DISK="/dev/disk/by-id/nvme-Samsung_SSD_970_PRO_512GB_SERIAL"
+TARGET_DISK="/dev/disk/by-id/nvme-Samsung_SSD_970_PRO_512GB_S463NF0K947877P"
 ESP_SIZE="1G"
 ROOT_SIZE="100G"
 KERNEL_PARAMS="rw zswap.enabled=0"
