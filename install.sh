@@ -24,13 +24,15 @@
 # Root:       password typed during the install (passwd), root login stays enabled
 # User:       suggorath (UID 1000, own group, wheel, bash), sudo for wheel, password typed during the install
 # Swap:       zram (zram-generator, ram / 2, zstd), zswap.enabled=0, sysctl tuning for zram, no hibernation, no disk swap
-# Extra:      dosfstools, nano, man-db, man-pages, less, bash-completion, pacman-contrib (paccache.timer)
+# Extra:      pacman Color + VerbosePkgLists, dosfstools, nano, man-db, man-pages, less, bash-completion, pacman-contrib (paccache.timer)
 # SSD:        fstrim.timer (weekly TRIM)
+# OOM:        systemd-oomd with the Fedora defaults (swap 90 % full, session memory pressure 50 %)
 # Sleep:      suspend and hibernation disabled (sleep.conf.d)
 # NVIDIA:     nvidia-open, lib32-nvidia-utils (multilib), libva-nvidia-driver, nvidia-settings, early loading in the UKI
 # Sound:      PipeWire + WirePlumber, pulse/alsa/jack layers, lib32-pipewire, alsa-utils (no firmware needed)
 # Bluetooth:  bluez, bluez-utils (bluetoothctl), bluez-obex (file transfer), bluetooth.service, default main.conf
 # Desktop:    KDE Plasma (Wayland), Plasma Login Manager, noto-fonts, keyboard us + sk qwerty (Alt+Shift)
+# NumLock:    on in the text consoles (getty + setleds), at the Plasma login screen and in the Plasma session
 # Apps:       konsole, dolphin, ark (+ 7zip, unrar), kcalc, gwenview, skanpage (OCR slk + eng), firefox
 # Containers: podman (rootless), podman-compose, short image names from docker.io
 # Editor:     zed (+ openbsd-netcat), ~/.config/zed/settings.json "use_podman": true
@@ -310,6 +312,9 @@ arch-chroot -S /mnt visudo -c
 
 # --- EXTRA PACKAGES ---
 
+# Colored pacman output, old and new version of every package in a table
+sed -i -e 's/^#Color$/Color/' -e 's/^#VerbosePkgLists$/VerbosePkgLists/' /mnt/etc/pacman.conf
+
 # Install FAT32 tools (check of the ESP at boot)
 arch-chroot -S /mnt pacman -S --noconfirm dosfstools
 
@@ -352,6 +357,26 @@ vm.watermark_boost_factor = 0
 vm.watermark_scale_factor = 125
 vm.page-cluster = 0
 EOF
+
+# --- OUT OF MEMORY ---
+
+# Kill the biggest memory user when swap (zram) is 90 % full (SwapUsedLimit in oomd.conf), as on Fedora
+mkdir -p /mnt/etc/systemd/system/-.slice.d
+cat > /mnt/etc/systemd/system/-.slice.d/10-oomd-root-slice-defaults.conf <<EOF
+[Slice]
+ManagedOOMSwap=kill
+EOF
+
+# Kill the most demanding application of the session under memory pressure above 50 %, as on Fedora
+mkdir -p /mnt/etc/systemd/system/user@.service.d
+cat > /mnt/etc/systemd/system/user@.service.d/10-oomd-user-service-defaults.conf <<EOF
+[Service]
+ManagedOOMMemoryPressure=kill
+ManagedOOMMemoryPressureLimit=50%
+EOF
+
+# Enable the out-of-memory daemon
+arch-chroot -S /mnt systemctl enable systemd-oomd.service
 
 # --- SLEEP ---
 
@@ -554,6 +579,33 @@ EOF
 # Start the Plasma login screen at boot
 arch-chroot -S /mnt systemctl enable plasmalogin.service
 
+# --- NUMLOCK ---
+
+# Turn NumLock on in the text consoles (Ctrl+Alt+F3 ...) before the login prompt
+mkdir -p /mnt/etc/systemd/system/getty@.service.d
+cat > /mnt/etc/systemd/system/getty@.service.d/activate-numlock.conf <<'EOF'
+[Service]
+ExecStartPre=/bin/sh -c 'setleds -D +num < /dev/%I'
+EOF
+
+# Turn NumLock on at the Plasma login screen (NumLock=0 means "turn on" in KDE)
+mkdir -p /mnt/var/lib/plasmalogin/.config/kdedefaults
+cat > /mnt/var/lib/plasmalogin/.config/kdedefaults/kcminputrc <<EOF
+[Keyboard]
+NumLock=0
+EOF
+arch-chroot -S /mnt chown -R plasmalogin:plasmalogin /var/lib/plasmalogin/.config
+
+# Turn NumLock on in the Plasma session (only if the user has no keyboard settings yet)
+if [[ ! -f "/mnt/home/$USER_NAME/.config/kcminputrc" ]]; then
+  mkdir -p "/mnt/home/$USER_NAME/.config"
+  cat > "/mnt/home/$USER_NAME/.config/kcminputrc" <<EOF
+[Keyboard]
+NumLock=0
+EOF
+  arch-chroot -S /mnt chown -R "$USER_NAME:$USER_NAME" "/home/$USER_NAME/.config"
+fi
+
 # --- CONTAINERS AND EDITOR ---
 
 # Install Podman (rootless containers), its runtime crun and podman-compose (runs compose.yaml files)
@@ -594,6 +646,17 @@ fi
 
 # Sign the boot loader before it is copied to the ESP (bootctl prefers the .efi.signed file)
 arch-chroot -S /mnt sbctl sign -s -o /usr/lib/systemd/boot/efi/systemd-bootx64.efi.signed /usr/lib/systemd/boot/efi/systemd-bootx64.efi
+
+# Firmware updates with fwupd (unused: dbx is updated by Windows, ASUS ships no BIOS on LVFS, no Discover)
+# fwupdx64.efi runs at boot for UEFI capsule (BIOS) updates, so it is signed with own key and shim is not used
+#arch-chroot -S /mnt pacman -S --noconfirm fwupd
+#arch-chroot -S /mnt sbctl sign -s -o /usr/lib/fwupd/efi/fwupdx64.efi.signed /usr/lib/fwupd/efi/fwupdx64.efi
+#mkdir -p /mnt/etc/fwupd
+#cat >> /mnt/etc/fwupd/fwupd.conf <<EOF
+#
+#[uefi_capsule]
+#DisableShimForSecureBoot=true
+#EOF
 
 # --- BOOT LOADER ---
 
