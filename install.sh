@@ -13,7 +13,7 @@
 # Secure Boot: sbctl in the script, own keys + Microsoft + ASUS keys, firmware in Setup Mode before the install
 # Windows:    stays on the Corsair disk, first in the boot order; Arch Linux from the firmware boot menu (F8)
 # Loader:     bootctl install --no-variables, own "Arch Linux" UEFI entry (efibootmgr), timeout 0, editor no
-# Packages:   pacstrap only base linux linux-firmware amd-ucode (default mirrorlist), everything else in chroot
+# Packages:   archlinux-keyring updated on the ISO, pacstrap only base linux linux-firmware amd-ucode (default mirrorlist), everything else in chroot
 # UKI:        mkinitcpio, preset and /etc/kernel/cmdline written before pacstrap, no fallback, no splash, no quiet
 # Time:       Europe/Bratislava, hardware clock in UTC (Windows: RealTimeIsUniversal=1), systemd-timesyncd
 # Locale:     LANG en_US.UTF-8 (English messages), all other LC_* sk_SK.UTF-8 (incl. sorting)
@@ -182,6 +182,9 @@ EOF
 # ============================================================================
 # INSTALL SYSTEM
 # ============================================================================
+
+# Update the signing keys of the live ISO (pacstrap checks package signatures with them; matters on an older ISO)
+pacman -Sy --needed --noconfirm archlinux-keyring
 
 # Install base packages, Linux kernel, firmware and CPU microcode
 pacstrap -K /mnt base linux linux-firmware amd-ucode
