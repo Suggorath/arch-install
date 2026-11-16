@@ -34,8 +34,8 @@
 # Desktop:    KDE Plasma (Wayland), Plasma Login Manager, noto-fonts, keyboard us + sk qwerty (Alt+Shift)
 # NumLock:    on in the text consoles (getty + setleds), at the Plasma login screen and in the Plasma session
 # Apps:       konsole, dolphin, ark (+ 7zip, unrar), kcalc, gwenview, skanpage (OCR slk + eng), firefox
-# Containers: podman (rootless), podman-compose, short image names from docker.io
-# Editor:     zed (+ openbsd-netcat), ~/.config/zed/settings.json "use_podman": true
+# Containers: (commented) podman (rootless), podman-compose, short image names from docker.io
+# Editor:     (commented) zed (+ openbsd-netcat), ~/.config/zed/settings.json "use_podman": true
 # Signing:    systemd-boot (.efi.signed) and UKI signed by sbctl, keys backed up to /home/sbctl-keys-backup
 # Printer:    CUPS (cups.socket), paper A4 from LC_PAPER, Brother DCP-L2600D driver + brscan5 scanner driver built from own PKGBUILDs
 
@@ -675,28 +675,30 @@ fi
 # CONTAINERS AND EDITOR
 # ============================================================================
 
+# Unused for now: Peter works only in Android Studio (Podman and Zed kept here for later)
+
 # Install Podman (rootless containers), its runtime crun and podman-compose (runs compose.yaml files)
-arch-chroot -S /mnt pacman -S --noconfirm podman crun podman-compose
+#arch-chroot -S /mnt pacman -S --noconfirm podman crun podman-compose
 
 # Search Docker Hub for short image names (e.g. "postgres" in compose files)
-mkdir -p /mnt/etc/containers/registries.conf.d
-cat > /mnt/etc/containers/registries.conf.d/10-unqualified-search-registries.conf <<EOF
-unqualified-search-registries = ["docker.io"]
-EOF
+#mkdir -p /mnt/etc/containers/registries.conf.d
+#cat > /mnt/etc/containers/registries.conf.d/10-unqualified-search-registries.conf <<EOF
+#unqualified-search-registries = ["docker.io"]
+#EOF
 
 # Install the Zed editor (netcat named so pacman does not have to choose one)
-arch-chroot -S /mnt pacman -S --noconfirm zed openbsd-netcat
+#arch-chroot -S /mnt pacman -S --noconfirm zed openbsd-netcat
 
 # Let Zed use Podman for dev containers (only if the user has no Zed settings yet)
-if [[ ! -f "/mnt/home/$USER_NAME/.config/zed/settings.json" ]]; then
-  mkdir -p "/mnt/home/$USER_NAME/.config/zed"
-  cat > "/mnt/home/$USER_NAME/.config/zed/settings.json" <<EOF
-{
-  "use_podman": true
-}
-EOF
-  arch-chroot -S /mnt chown -R "$USER_NAME:$USER_NAME" "/home/$USER_NAME/.config"
-fi
+#if [[ ! -f "/mnt/home/$USER_NAME/.config/zed/settings.json" ]]; then
+#  mkdir -p "/mnt/home/$USER_NAME/.config/zed"
+#  cat > "/mnt/home/$USER_NAME/.config/zed/settings.json" <<EOF
+#{
+#  "use_podman": true
+#}
+#EOF
+#  arch-chroot -S /mnt chown -R "$USER_NAME:$USER_NAME" "/home/$USER_NAME/.config"
+#fi
 
 # ============================================================================
 # SECURE BOOT
