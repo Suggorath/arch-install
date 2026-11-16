@@ -12,7 +12,7 @@
 # Boot:       systemd-boot + UKI (mkinitcpio builds it into /efi/EFI/Linux), root=PARTUUID=...
 # Secure Boot: sbctl in the script, own keys + Microsoft + ASUS keys, firmware in Setup Mode before the install
 # Windows:    stays on the Corsair disk, first in the boot order; Arch Linux from the firmware boot menu (F8)
-# Loader:     bootctl install --no-variables, own "Arch Linux" UEFI entry (efibootmgr), timeout 0, editor no
+# Loader:     bootctl install --no-variables, pacman hook copies the signed systemd-boot after updates, own "Arch Linux" UEFI entry (efibootmgr), timeout 0, editor no
 # Packages:   archlinux-keyring updated on the ISO, pacstrap only base linux linux-firmware amd-ucode (default mirrorlist), everything else in chroot
 # UKI:        mkinitcpio, preset and /etc/kernel/cmdline written before pacstrap, no fallback, no splash, no quiet
 # Time:       Europe/Bratislava, hardware clock in UTC (Windows: RealTimeIsUniversal=1), systemd-timesyncd
@@ -738,6 +738,23 @@ arch-chroot -S /mnt sbctl sign -s -o /usr/lib/systemd/boot/efi/systemd-bootx64.e
 
 # Install systemd-boot to the ESP (no UEFI boot entry)
 arch-chroot -S /mnt bootctl install --no-variables
+
+# Copy the newly signed systemd-boot to the ESP after a systemd update. The systemd package runs bootctl update
+# in 35-systemd-enqueue-marked.hook, before zz-sbctl.hook has signed the new version, so it finds only the old
+# .efi.signed and copies nothing; this hook runs after zz-sbctl (see sbctl issue #119)
+mkdir -p /mnt/etc/pacman.d/hooks
+cat > /mnt/etc/pacman.d/hooks/zzz-systemd-boot-update.hook <<EOF
+[Trigger]
+Type = Path
+Operation = Install
+Operation = Upgrade
+Target = usr/lib/systemd/boot/efi/systemd-boot*.efi
+
+[Action]
+Description = Copying the signed systemd-boot to the ESP...
+When = PostTransaction
+Exec = /usr/bin/bootctl --no-variables --graceful update
+EOF
 
 # Write loader.conf: start the UKI at once (timeout 0), no editing of kernel parameters;
 # other options commented with default and values
