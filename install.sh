@@ -41,7 +41,9 @@
 
 set -euo pipefail
 
-# --- CONFIG ---
+# ============================================================================
+# CONFIG
+# ============================================================================
 
 KEEP_HOME="no"
 KEYMAP="us"
@@ -63,7 +65,9 @@ PRINTER_URI="usb://Brother/DCP-L2600D?serial=E83173H4N371555"
 #WIFI_SSID=""
 #WIFI_PASSPHRASE=""
 
-# --- LIVE CONSOLE ---
+# ============================================================================
+# LIVE CONSOLE
+# ============================================================================
 
 # Set keymap for the live ISO
 loadkeys "$KEYMAP"
@@ -71,7 +75,9 @@ loadkeys "$KEYMAP"
 # Set font for the live ISO
 setfont "$CONSOLE_FONT"
 
-# --- CHECKS ---
+# ============================================================================
+# CHECKS
+# ============================================================================
 
 # Check boot mode
 cat /sys/firmware/efi/fw_platform_size
@@ -82,7 +88,9 @@ ping -c 3 ping.archlinux.org
 # Check system clock
 timedatectl
 
-# --- ERASE TARGET DISK (new install only) ---
+# ============================================================================
+# ERASE TARGET DISK (new install only)
+# ============================================================================
 
 if [[ "$KEEP_HOME" == "no" ]]; then
   # Erase file system signatures
@@ -92,7 +100,9 @@ if [[ "$KEEP_HOME" == "no" ]]; then
   sgdisk --zap-all "$TARGET_DISK"
 fi
 
-# --- PARTITIONS ---
+# ============================================================================
+# PARTITIONS
+# ============================================================================
 
 if [[ "$KEEP_HOME" == "no" ]]; then
   # Create partitions
@@ -112,7 +122,9 @@ else
   ls -l /dev/disk/by-partlabel/ARCH_ESP /dev/disk/by-partlabel/ARCH_ROOT /dev/disk/by-partlabel/ARCH_HOME
 fi
 
-# --- FILE SYSTEMS ---
+# ============================================================================
+# FILE SYSTEMS
+# ============================================================================
 
 # Format ESP
 mkfs.fat -F 32 -n ARCH_ESP /dev/disk/by-partlabel/ARCH_ESP
@@ -125,7 +137,9 @@ if [[ "$KEEP_HOME" == "no" ]]; then
   mkfs.ext4 -F -m 1 -L ARCH_HOME /dev/disk/by-partlabel/ARCH_HOME
 fi
 
-# --- MOUNT ---
+# ============================================================================
+# MOUNT
+# ============================================================================
 
 # Mount root
 mount /dev/disk/by-partlabel/ARCH_ROOT /mnt
@@ -136,7 +150,9 @@ mount --mkdir -o fmask=0177,dmask=0077 /dev/disk/by-partlabel/ARCH_ESP /mnt/efi
 # Mount home
 mount --mkdir /dev/disk/by-partlabel/ARCH_HOME /mnt/home
 
-# --- UKI SETUP ---
+# ============================================================================
+# UKI SETUP
+# ============================================================================
 
 # Set kernel parameters
 mkdir -p /mnt/etc/kernel
@@ -163,17 +179,23 @@ default_uki="/efi/EFI/Linux/arch-linux.efi"
 #default_options="--splash /usr/share/systemd/bootctl/splash-arch.bmp"
 EOF
 
-# --- INSTALL SYSTEM ---
+# ============================================================================
+# INSTALL SYSTEM
+# ============================================================================
 
 # Install base packages, Linux kernel, firmware and CPU microcode
 pacstrap -K /mnt base linux linux-firmware amd-ucode
 
-# --- FSTAB ---
+# ============================================================================
+# FSTAB
+# ============================================================================
 
 # Generate fstab
 genfstab -t PARTUUID /mnt >> /mnt/etc/fstab
 
-# --- TIME ---
+# ============================================================================
+# TIME
+# ============================================================================
 
 # Set time zone
 ln -sf "/usr/share/zoneinfo/$TIMEZONE" /mnt/etc/localtime
@@ -184,7 +206,9 @@ arch-chroot -S /mnt hwclock --systohc
 # Enable time sync
 arch-chroot -S /mnt systemctl enable systemd-timesyncd.service
 
-# --- LOCALIZATION ---
+# ============================================================================
+# LOCALIZATION
+# ============================================================================
 
 # Select locales
 sed -i -e "s/^#$LOCALE_LANG /$LOCALE_LANG /" -e "s/^#$LOCALE_FORMATS /$LOCALE_FORMATS /" /mnt/etc/locale.gen
@@ -210,7 +234,9 @@ LC_MEASUREMENT=$LOCALE_FORMATS
 LC_IDENTIFICATION=$LOCALE_FORMATS
 EOF
 
-# --- CONSOLE KEYMAP AND FONT ---
+# ============================================================================
+# CONSOLE KEYMAP AND FONT
+# ============================================================================
 
 # Install console fonts
 arch-chroot -S /mnt pacman -S --noconfirm terminus-font
@@ -225,7 +251,9 @@ FONT=$CONSOLE_FONT
 #FONT_SCALE=100%
 EOF
 
-# --- HOSTNAME ---
+# ============================================================================
+# HOSTNAME
+# ============================================================================
 
 # Set hostname
 echo "$HOST_NAME" > /mnt/etc/hostname
@@ -251,7 +279,9 @@ HARDWARE_MODEL="$HARDWARE_MODEL"
 #HARDWARE_VERSION=
 EOF
 
-# --- NETWORK ---
+# ============================================================================
+# NETWORK
+# ============================================================================
 
 # Install NetworkManager
 arch-chroot -S /mnt pacman -S --noconfirm networkmanager
@@ -274,7 +304,9 @@ ln -sf ../run/systemd/resolve/stub-resolv.conf /mnt/etc/resolv.conf
 #Domains=~.
 #EOF
 
-# --- FIREWALL ---
+# ============================================================================
+# FIREWALL
+# ============================================================================
 
 # Install firewalld (default zone public: only ssh and dhcpv6-client allowed in)
 arch-chroot -S /mnt pacman -S --noconfirm firewalld
@@ -282,12 +314,16 @@ arch-chroot -S /mnt pacman -S --noconfirm firewalld
 # Enable firewalld
 arch-chroot -S /mnt systemctl enable firewalld.service
 
-# --- ROOT PASSWORD ---
+# ============================================================================
+# ROOT PASSWORD
+# ============================================================================
 
 # Set root password (typed twice, not stored in the script)
 arch-chroot -S /mnt passwd
 
-# --- USER ---
+# ============================================================================
+# USER
+# ============================================================================
 
 # Install sudo
 arch-chroot -S /mnt pacman -S --noconfirm sudo
@@ -310,7 +346,9 @@ chmod 440 /mnt/etc/sudoers.d/10-wheel
 # Check sudo configuration
 arch-chroot -S /mnt visudo -c
 
-# --- EXTRA PACKAGES ---
+# ============================================================================
+# EXTRA PACKAGES
+# ============================================================================
 
 # Colored pacman output, old and new version of every package in a table
 sed -i -e 's/^#Color$/Color/' -e 's/^#VerbosePkgLists$/VerbosePkgLists/' /mnt/etc/pacman.conf
@@ -333,12 +371,16 @@ arch-chroot -S /mnt pacman -S --noconfirm pacman-contrib
 # Clean old packages from the pacman cache every week (keeps the last 3 versions)
 arch-chroot -S /mnt systemctl enable paccache.timer
 
-# --- SSD ---
+# ============================================================================
+# SSD
+# ============================================================================
 
 # Trim the SSD every week
 arch-chroot -S /mnt systemctl enable fstrim.timer
 
-# --- SWAP ---
+# ============================================================================
+# SWAP
+# ============================================================================
 
 # Install zram swap
 arch-chroot -S /mnt pacman -S --noconfirm zram-generator
@@ -358,7 +400,9 @@ vm.watermark_scale_factor = 125
 vm.page-cluster = 0
 EOF
 
-# --- OUT OF MEMORY ---
+# ============================================================================
+# OUT OF MEMORY
+# ============================================================================
 
 # Kill the biggest memory user when swap (zram) is 90 % full (SwapUsedLimit in oomd.conf), as on Fedora
 mkdir -p /mnt/etc/systemd/system/-.slice.d
@@ -378,7 +422,9 @@ EOF
 # Enable the out-of-memory daemon
 arch-chroot -S /mnt systemctl enable systemd-oomd.service
 
-# --- SLEEP ---
+# ============================================================================
+# SLEEP
+# ============================================================================
 
 # Disable suspend and hibernation (NVIDIA suspend is not set up, no disk swap for hibernation)
 mkdir -p /mnt/etc/systemd/sleep.conf.d
@@ -390,7 +436,9 @@ AllowHybridSleep=no
 AllowSuspendThenHibernate=no
 EOF
 
-# --- NVIDIA ---
+# ============================================================================
+# NVIDIA
+# ============================================================================
 
 # Enable the multilib repository (32-bit libraries for Steam and Wine)
 sed -i '/^#\[multilib\]/,/^#Include/ s/^#//' /mnt/etc/pacman.conf
@@ -405,7 +453,9 @@ MODULES=(nvidia nvidia_modeset nvidia_uvm nvidia_drm)
 HOOKS=(base systemd autodetect microcode modconf keyboard sd-vconsole block filesystems fsck)
 EOF
 
-# --- SOUND ---
+# ============================================================================
+# SOUND
+# ============================================================================
 
 # Install sound server, session manager and support for PulseAudio, ALSA, JACK and 32-bit programs
 arch-chroot -S /mnt pacman -S --noconfirm pipewire wireplumber pipewire-audio pipewire-pulse pipewire-alsa pipewire-jack lib32-pipewire
@@ -413,7 +463,9 @@ arch-chroot -S /mnt pacman -S --noconfirm pipewire wireplumber pipewire-audio pi
 # Install ALSA tools (alsamixer, aplay, speaker-test) and saving of the mixer state
 arch-chroot -S /mnt pacman -S --noconfirm alsa-utils
 
-# --- BLUETOOTH ---
+# ============================================================================
+# BLUETOOTH
+# ============================================================================
 
 # Install Bluetooth stack, bluetoothctl and file transfer
 arch-chroot -S /mnt pacman -S --noconfirm bluez bluez-utils bluez-obex
@@ -421,7 +473,9 @@ arch-chroot -S /mnt pacman -S --noconfirm bluez bluez-utils bluez-obex
 # Enable Bluetooth
 arch-chroot -S /mnt systemctl enable bluetooth.service
 
-# --- PRINTER AND SCANNER ---
+# ============================================================================
+# PRINTER AND SCANNER
+# ============================================================================
 
 # Install print system, scanner access, tools needed by the Brother drivers and the package build tool
 arch-chroot -S /mnt pacman -S --noconfirm cups ghostscript perl which sane fakeroot
@@ -548,7 +602,9 @@ arch-chroot -S /mnt bash -c '
   wait
 ' _ "$PRINTER_NAME" "$PRINTER_URI"
 
-# --- DESKTOP (KDE PLASMA) ---
+# ============================================================================
+# DESKTOP (KDE PLASMA)
+# ============================================================================
 
 # Install the fonts and name the providers pacman would otherwise pick itself
 # (OCR languages for Spectacle and Skanpage: Slovak + English, not the first in the list)
@@ -579,7 +635,9 @@ EOF
 # Start the Plasma login screen at boot
 arch-chroot -S /mnt systemctl enable plasmalogin.service
 
-# --- NUMLOCK ---
+# ============================================================================
+# NUMLOCK
+# ============================================================================
 
 # Turn NumLock on in the text consoles (Ctrl+Alt+F3 ...) before the login prompt
 mkdir -p /mnt/etc/systemd/system/getty@.service.d
@@ -606,7 +664,9 @@ EOF
   arch-chroot -S /mnt chown -R "$USER_NAME:$USER_NAME" "/home/$USER_NAME/.config"
 fi
 
-# --- CONTAINERS AND EDITOR ---
+# ============================================================================
+# CONTAINERS AND EDITOR
+# ============================================================================
 
 # Install Podman (rootless containers), its runtime crun and podman-compose (runs compose.yaml files)
 arch-chroot -S /mnt pacman -S --noconfirm podman crun podman-compose
@@ -631,7 +691,9 @@ EOF
   arch-chroot -S /mnt chown -R "$USER_NAME:$USER_NAME" "/home/$USER_NAME/.config"
 fi
 
-# --- SECURE BOOT ---
+# ============================================================================
+# SECURE BOOT
+# ============================================================================
 
 # Install Secure Boot key manager (also signs files on every update)
 arch-chroot -S /mnt pacman -S --noconfirm sbctl
@@ -658,7 +720,9 @@ arch-chroot -S /mnt sbctl sign -s -o /usr/lib/systemd/boot/efi/systemd-bootx64.e
 #DisableShimForSecureBoot=true
 #EOF
 
-# --- BOOT LOADER ---
+# ============================================================================
+# BOOT LOADER
+# ============================================================================
 
 # Install systemd-boot to the ESP (no UEFI boot entry)
 arch-chroot -S /mnt bootctl install --no-variables
@@ -717,7 +781,9 @@ if [[ "$KEEP_HOME" == "no" ]]; then
   efibootmgr --create-only --disk "$TARGET_DISK" --part 1 --label "Arch Linux" --loader '\EFI\systemd\systemd-bootx64.efi'
 fi
 
-# --- WI-FI (only without the Ethernet cable) ---
+# ============================================================================
+# WI-FI (only without the Ethernet cable)
+# ============================================================================
 
 # Save Wi-Fi network
 #cat > "/mnt/etc/NetworkManager/system-connections/$WIFI_SSID.nmconnection" <<EOF
@@ -744,12 +810,16 @@ fi
 # Allow only root to read the Wi-Fi network
 #chmod 600 "/mnt/etc/NetworkManager/system-connections/$WIFI_SSID.nmconnection"
 
-# --- UKI ---
+# ============================================================================
+# UKI
+# ============================================================================
 
 # Rebuild the UKI with the final settings (keymap, font), sbctl signs it
 arch-chroot -S /mnt mkinitcpio -P
 
-# --- SECURE BOOT KEYS ---
+# ============================================================================
+# SECURE BOOT KEYS
+# ============================================================================
 
 # Check that every boot file on the ESP is signed
 arch-chroot -S /mnt sbctl verify
