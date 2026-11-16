@@ -79,13 +79,13 @@ setfont "$CONSOLE_FONT"
 # CHECKS
 # ============================================================================
 
-# Check boot mode
+# Check boot mode (prints 64 on 64-bit UEFI, stops the script if not booted in UEFI mode)
 cat /sys/firmware/efi/fw_platform_size
 
-# Check internet connection
+# Check internet connection (stops the script if there is no reply)
 ping -c 3 ping.archlinux.org
 
-# Check system clock
+# Show the clock and NTP sync state (only shown, not checked)
 timedatectl
 
 # ============================================================================
@@ -93,7 +93,7 @@ timedatectl
 # ============================================================================
 
 if [[ "$KEEP_HOME" == "no" ]]; then
-  # Erase file system signatures
+  # Erase signatures on the whole disk device (GPT and protective MBR headers)
   wipefs -a "$TARGET_DISK"
 
   # Erase partition table
@@ -105,14 +105,15 @@ fi
 # ============================================================================
 
 if [[ "$KEEP_HOME" == "no" ]]; then
-  # Create partitions
+  # Create ESP, root and home (GPT types EFI System, Linux x86-64 root, Linux home; names used to find them later;
+  # -I aligns the partition ends)
   sgdisk -I \
     -n 1:0:+"$ESP_SIZE"  -t 1:ef00 -c 1:ARCH_ESP \
     -n 2:0:+"$ROOT_SIZE" -t 2:8304 -c 2:ARCH_ROOT \
     -n 3:0:0             -t 3:8302 -c 3:ARCH_HOME \
     "$TARGET_DISK"
 
-  # Reload partition table
+  # Tell the kernel about the new partition table
   partprobe "$TARGET_DISK"
 
   # Wait until the new partitions are visible
@@ -126,13 +127,13 @@ fi
 # FILE SYSTEMS
 # ============================================================================
 
-# Format ESP
+# Format ESP as FAT32
 mkfs.fat -F 32 -n ARCH_ESP /dev/disk/by-partlabel/ARCH_ESP
 
-# Format root
+# Format root as ext4 (-F: also over old signatures)
 mkfs.ext4 -F -L ARCH_ROOT /dev/disk/by-partlabel/ARCH_ROOT
 
-# Format home (new install only, a reinstall keeps it)
+# Format home as ext4 (new install only, a reinstall keeps it; -m 1: reserve 1 % for root instead of 5 %)
 if [[ "$KEEP_HOME" == "no" ]]; then
   mkfs.ext4 -F -m 1 -L ARCH_HOME /dev/disk/by-partlabel/ARCH_HOME
 fi
@@ -144,7 +145,7 @@ fi
 # Mount root
 mount /dev/disk/by-partlabel/ARCH_ROOT /mnt
 
-# Mount ESP
+# Mount ESP at /efi, files readable only by root (fmask/dmask)
 mount --mkdir -o fmask=0177,dmask=0077 /dev/disk/by-partlabel/ARCH_ESP /mnt/efi
 
 # Mount home
@@ -154,7 +155,8 @@ mount --mkdir /dev/disk/by-partlabel/ARCH_HOME /mnt/home
 # UKI SETUP
 # ============================================================================
 
-# Set kernel parameters
+# Write the kernel command line for the UKI (root by PARTUUID + KERNEL_PARAMS), before pacstrap so the first
+# UKI build uses it
 mkdir -p /mnt/etc/kernel
 echo "root=PARTUUID=$(blkid -s PARTUUID -o value /dev/disk/by-partlabel/ARCH_ROOT) $KERNEL_PARAMS" > /mnt/etc/kernel/cmdline
 
@@ -163,7 +165,8 @@ echo "root=PARTUUID=$(blkid -s PARTUUID -o value /dev/disk/by-partlabel/ARCH_ROO
 #echo "root=PARTUUID=$(blkid -s PARTUUID -o value /dev/disk/by-partlabel/ARCH_ROOT) rw" > /mnt/etc/cmdline.d/10-root.conf
 #echo "zswap.enabled=0" > /mnt/etc/cmdline.d/20-swap.conf
 
-# Build only the UKI
+# Write the mkinitcpio preset before pacstrap: build only a UKI on the ESP (no separate initramfs, no fallback);
+# the linux package keeps an existing preset
 mkdir -p /mnt/etc/mkinitcpio.d
 cat > /mnt/etc/mkinitcpio.d/linux.preset <<EOF
 # mkinitcpio preset file for the 'linux' package
@@ -186,14 +189,14 @@ EOF
 # Update the signing keys of the live ISO (pacstrap checks package signatures with them; matters on an older ISO)
 pacman -Sy --needed --noconfirm archlinux-keyring
 
-# Install base packages, Linux kernel, firmware and CPU microcode
+# Install base packages, Linux kernel, firmware and CPU microcode (-K: new empty keyring in the target)
 pacstrap -K /mnt base linux linux-firmware amd-ucode
 
 # ============================================================================
 # FSTAB
 # ============================================================================
 
-# Generate fstab
+# Write fstab from the current mounts, partitions named by PARTUUID
 genfstab -t PARTUUID /mnt >> /mnt/etc/fstab
 
 # ============================================================================
@@ -203,23 +206,23 @@ genfstab -t PARTUUID /mnt >> /mnt/etc/fstab
 # Set time zone
 ln -sf "/usr/share/zoneinfo/$TIMEZONE" /mnt/etc/localtime
 
-# Set hardware clock
+# Write the current time to the hardware clock as UTC (creates /etc/adjtime)
 arch-chroot -S /mnt hwclock --systohc
 
-# Enable time sync
+# Enable time sync over NTP (systemd-timesyncd)
 arch-chroot -S /mnt systemctl enable systemd-timesyncd.service
 
 # ============================================================================
 # LOCALIZATION
 # ============================================================================
 
-# Select locales
+# Uncomment the two locales in /etc/locale.gen
 sed -i -e "s/^#$LOCALE_LANG /$LOCALE_LANG /" -e "s/^#$LOCALE_FORMATS /$LOCALE_FORMATS /" /mnt/etc/locale.gen
 
 # Generate locales
 arch-chroot -S /mnt locale-gen
 
-# Set locale
+# Set English messages and Slovak formats (LC_MESSAGES follows LANG)
 cat > /mnt/etc/locale.conf <<EOF
 LANG=$LOCALE_LANG
 #LANGUAGE=en_US:en
@@ -241,10 +244,10 @@ EOF
 # CONSOLE KEYMAP AND FONT
 # ============================================================================
 
-# Install console fonts
+# Install Terminus console fonts (ter-232b is not in kbd)
 arch-chroot -S /mnt pacman -S --noconfirm terminus-font
 
-# Set keymap and font
+# Set console keymap and font (also put into the UKI by sd-vconsole)
 cat > /mnt/etc/vconsole.conf <<EOF
 KEYMAP=$KEYMAP
 #KEYMAP_TOGGLE=
@@ -268,7 +271,7 @@ cat > /mnt/etc/hosts <<EOF
 127.0.1.1        $HOST_NAME
 EOF
 
-# Set machine info
+# Set pretty hostname and board model (shown by hostnamectl)
 cat > /mnt/etc/machine-info <<EOF
 PRETTY_HOSTNAME="$PRETTY_HOST_NAME"
 #ICON_NAME=computer-desktop
@@ -292,10 +295,10 @@ arch-chroot -S /mnt pacman -S --noconfirm networkmanager
 # Enable NetworkManager
 arch-chroot -S /mnt systemctl enable NetworkManager.service
 
-# Enable DNS resolver
+# Enable systemd-resolved (local DNS cache, servers come from NetworkManager)
 arch-chroot -S /mnt systemctl enable systemd-resolved.service
 
-# Use DNS resolver for all programs
+# Point /etc/resolv.conf to the resolved stub 127.0.0.53 (link made outside the chroot)
 ln -sf ../run/systemd/resolve/stub-resolv.conf /mnt/etc/resolv.conf
 
 # Use own encrypted DNS servers instead of the router (unused, DNS comes from the router)
@@ -346,7 +349,7 @@ arch-chroot -S /mnt passwd "$USER_NAME"
 echo "%wheel ALL=(ALL:ALL) ALL" > /mnt/etc/sudoers.d/10-wheel
 chmod 440 /mnt/etc/sudoers.d/10-wheel
 
-# Check sudo configuration
+# Check sudoers syntax (stops the script on an error)
 arch-chroot -S /mnt visudo -c
 
 # ============================================================================
@@ -385,17 +388,17 @@ arch-chroot -S /mnt systemctl enable fstrim.timer
 # SWAP
 # ============================================================================
 
-# Install zram swap
+# Install zram-generator (creates the swap device in RAM at boot)
 arch-chroot -S /mnt pacman -S --noconfirm zram-generator
 
-# Set zram swap (compressed swap in RAM)
+# Set zram swap: half of the RAM, zstd compression
 cat > /mnt/etc/systemd/zram-generator.conf <<EOF
 [zram0]
 zram-size = ram / 2
 compression-algorithm = zstd
 EOF
 
-# Tune memory management for swap in RAM
+# Tune memory management for swap in RAM (values from the Arch Wiki, as on Pop!_OS)
 cat > /mnt/etc/sysctl.d/99-vm-zram-parameters.conf <<EOF
 vm.swappiness = 180
 vm.watermark_boost_factor = 0
@@ -443,13 +446,14 @@ EOF
 # NVIDIA
 # ============================================================================
 
-# Enable the multilib repository (32-bit libraries for Steam and Wine)
+# Enable the multilib repository (32-bit libraries: lib32-nvidia-utils, lib32-pipewire)
 sed -i '/^#\[multilib\]/,/^#Include/ s/^#//' /mnt/etc/pacman.conf
 
 # Install NVIDIA driver, 32-bit libraries, video decoding (VA-API) and settings
+# (-Syu downloads the new multilib database)
 arch-chroot -S /mnt pacman -Syu --noconfirm nvidia-open lib32-nvidia-utils libva-nvidia-driver nvidia-settings
 
-# Load the NVIDIA driver early from the UKI, without the kms hook (keeps nouveau out)
+# Load the NVIDIA modules from the UKI at boot; HOOKS = default list without kms, so nouveau is not in the UKI
 mkdir -p /mnt/etc/mkinitcpio.conf.d
 cat > /mnt/etc/mkinitcpio.conf.d/nvidia.conf <<EOF
 MODULES=(nvidia nvidia_modeset nvidia_uvm nvidia_drm)
@@ -698,7 +702,7 @@ fi
 # SECURE BOOT
 # ============================================================================
 
-# Install Secure Boot key manager (also signs files on every update)
+# Install sbctl (its pacman hook re-signs the registered files after updates)
 arch-chroot -S /mnt pacman -S --noconfirm sbctl
 
 if [[ "$KEEP_HOME" == "no" ]]; then
@@ -709,7 +713,8 @@ else
   cp -a /mnt/home/sbctl-keys-backup /mnt/var/lib/sbctl
 fi
 
-# Sign the boot loader before it is copied to the ESP (bootctl prefers the .efi.signed file)
+# Sign the boot loader before it is copied to the ESP (bootctl prefers the .efi.signed file;
+# -s: registered, so it is re-signed on updates)
 arch-chroot -S /mnt sbctl sign -s -o /usr/lib/systemd/boot/efi/systemd-bootx64.efi.signed /usr/lib/systemd/boot/efi/systemd-bootx64.efi
 
 # Firmware updates with fwupd (unused: dbx is updated by Windows, ASUS ships no BIOS on LVFS, no Discover)
@@ -730,7 +735,8 @@ arch-chroot -S /mnt sbctl sign -s -o /usr/lib/systemd/boot/efi/systemd-bootx64.e
 # Install systemd-boot to the ESP (no UEFI boot entry)
 arch-chroot -S /mnt bootctl install --no-variables
 
-# Set boot menu
+# Write loader.conf: start the UKI at once (timeout 0), no editing of kernel parameters;
+# other options commented with default and values
 cat > /mnt/efi/loader/loader.conf <<EOF
 # Default entry {first entry} [entry id e.g. arch-linux.efi, glob pattern, @saved]
 default                          arch-linux.efi
@@ -817,7 +823,7 @@ fi
 # UKI
 # ============================================================================
 
-# Rebuild the UKI with the final settings (keymap, font), sbctl signs it
+# Rebuild the UKI with all final settings (console keymap and font, NVIDIA modules); the sbctl hook signs it
 arch-chroot -S /mnt mkinitcpio -P
 
 # ============================================================================
