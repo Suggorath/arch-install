@@ -37,7 +37,7 @@
 # Containers: (commented) podman (rootless), podman-compose, short image names from docker.io
 # Editor:     (commented) zed (+ openbsd-netcat), ~/.config/zed/settings.json "use_podman": true
 # Signing:    systemd-boot (.efi.signed) and UKI signed by sbctl, keys backed up to /home/sbctl-keys-backup
-# Printer:    CUPS (cups.socket), paper A4 from LC_PAPER, Brother DCP-L2600D driver + brscan5 scanner driver built from own PKGBUILDs
+# Printer:    (commented) CUPS (cups.socket), paper A4 from LC_PAPER, Brother DCP-L2600D driver + brscan5 scanner driver built from own PKGBUILDs
 
 set -euo pipefail
 
@@ -60,8 +60,8 @@ PRETTY_HOST_NAME="SUGGORATH-PC"
 HARDWARE_MODEL="ROG STRIX X670E-F GAMING WIFI"
 USER_NAME="suggorath"
 USER_FULL_NAME="Suggorath"
-PRINTER_NAME="DCP-L2600D"
-PRINTER_URI="usb://Brother/DCP-L2600D?serial=E83173H4N371555"
+#PRINTER_NAME="DCP-L2600D"
+#PRINTER_URI="usb://Brother/DCP-L2600D?serial=E83173H4N371555"
 #WIFI_SSID=""
 #WIFI_PASSPHRASE=""
 
@@ -484,130 +484,132 @@ arch-chroot -S /mnt systemctl enable bluetooth.service
 # PRINTER AND SCANNER
 # ============================================================================
 
+# Unused for now: the whole section is commented out (Brother driver code kept for later)
+
 # Install print system, scanner access, tools needed by the Brother drivers and the package build tool
-arch-chroot -S /mnt pacman -S --noconfirm cups ghostscript perl which sane fakeroot
+#arch-chroot -S /mnt pacman -S --noconfirm cups ghostscript perl which sane fakeroot
 
 # Start the print system when a program prints
-arch-chroot -S /mnt systemctl enable cups.socket
+#arch-chroot -S /mnt systemctl enable cups.socket
 
 # Write package recipe for the Brother printer driver
-mkdir -p "/mnt/home/$USER_NAME/pkgbuilds/brother-dcp-l2600d"
-cat > "/mnt/home/$USER_NAME/pkgbuilds/brother-dcp-l2600d/PKGBUILD" <<'EOF'
+#mkdir -p "/mnt/home/$USER_NAME/pkgbuilds/brother-dcp-l2600d"
+#cat > "/mnt/home/$USER_NAME/pkgbuilds/brother-dcp-l2600d/PKGBUILD" <<'EOF'
 # Brother DCP-L2600D printer driver (LPR + CUPS wrapper from Brother, 64-bit part only)
-pkgname=brother-dcp-l2600d
-pkgver=4.1.0
-pkgrel=2
-pkgdesc="LPR and CUPS driver for the Brother DCP-L2600D printer"
-arch=('x86_64')
-url="https://support.brother.com/g/b/downloadlist.aspx?c=eu_ot&lang=en&prod=dcpl2600d_eu_as&os=127"
-license=('custom:Brother')
-depends=('cups' 'ghostscript' 'perl' 'which')
-options=('!strip' '!debug')
-source=("https://download.brother.com/welcome/dlf106007/dcpl2600dpdrv-4.1.0-2.i386.rpm")
-sha256sums=('24e4630dbb1af041689efa2093befeb2fb46537430285b80afde48a8405ceb9c')
+#pkgname=brother-dcp-l2600d
+#pkgver=4.1.0
+#pkgrel=2
+#pkgdesc="LPR and CUPS driver for the Brother DCP-L2600D printer"
+#arch=('x86_64')
+#url="https://support.brother.com/g/b/downloadlist.aspx?c=eu_ot&lang=en&prod=dcpl2600d_eu_as&os=127"
+#license=('custom:Brother')
+#depends=('cups' 'ghostscript' 'perl' 'which')
+#options=('!strip' '!debug')
+#source=("https://download.brother.com/welcome/dlf106007/dcpl2600dpdrv-4.1.0-2.i386.rpm")
+#sha256sums=('24e4630dbb1af041689efa2093befeb2fb46537430285b80afde48a8405ceb9c')
 
-package() {
-  local src="$srcdir/opt/brother/Printers/DCPL2600D"
-  local dst="$pkgdir/opt/brother/Printers/DCPL2600D"
+#package() {
+#  local src="$srcdir/opt/brother/Printers/DCPL2600D"
+#  local dst="$pkgdir/opt/brother/Printers/DCPL2600D"
 
-  # Driver files stay in /opt (the filter finds its files from its own path)
-  install -d "$dst/lpd"
-  cp -r "$src/cupswrapper" "$src/inf" "$dst/"
-  install -m755 "$src/lpd/lpdfilter" "$src/lpd/x86_64/rawtobr3" "$src/lpd/x86_64/brprintconflsr3" "$dst/lpd/"
+#  # Driver files stay in /opt (the filter finds its files from its own path)
+#  install -d "$dst/lpd"
+#  cp -r "$src/cupswrapper" "$src/inf" "$dst/"
+#  install -m755 "$src/lpd/lpdfilter" "$src/lpd/x86_64/rawtobr3" "$src/lpd/x86_64/brprintconflsr3" "$dst/lpd/"
 
-  # Printer description for CUPS
-  install -Dm644 "$src/cupswrapper/brother-DCPL2600D-cups-en.ppd" \
-    "$pkgdir/usr/share/cups/model/Brother/brother-DCPL2600D-cups-en.ppd"
+#  # Printer description for CUPS
+#  install -Dm644 "$src/cupswrapper/brother-DCPL2600D-cups-en.ppd" \
+#    "$pkgdir/usr/share/cups/model/Brother/brother-DCPL2600D-cups-en.ppd"
 
-  # CUPS filter named in the PPD
-  install -d "$pkgdir/usr/lib/cups/filter"
-  ln -s /opt/brother/Printers/DCPL2600D/cupswrapper/lpdwrapper \
-    "$pkgdir/usr/lib/cups/filter/brother_lpdwrapper_DCPL2600D"
+#  # CUPS filter named in the PPD
+#  install -d "$pkgdir/usr/lib/cups/filter"
+#  ln -s /opt/brother/Printers/DCPL2600D/cupswrapper/lpdwrapper \
+#    "$pkgdir/usr/lib/cups/filter/brother_lpdwrapper_DCPL2600D"
 
-  install -Dm644 "$src/LICENSE_ENG.txt" "$pkgdir/usr/share/licenses/$pkgname/LICENSE_ENG.txt"
-}
-EOF
+#  install -Dm644 "$src/LICENSE_ENG.txt" "$pkgdir/usr/share/licenses/$pkgname/LICENSE_ENG.txt"
+#}
+#EOF
 
 # Write package recipe for the Brother scanner driver
-mkdir -p "/mnt/home/$USER_NAME/pkgbuilds/brscan5"
-cat > "/mnt/home/$USER_NAME/pkgbuilds/brscan5/PKGBUILD" <<'EOF'
+#mkdir -p "/mnt/home/$USER_NAME/pkgbuilds/brscan5"
+#cat > "/mnt/home/$USER_NAME/pkgbuilds/brscan5/PKGBUILD" <<'EOF'
 # Brother SANE scanner driver (based on the AUR brscan5 PKGBUILD)
-pkgname=brscan5
-pkgver=1.8.1
-pkgrel=1
-pkgdesc="SANE driver from Brother for compatible models"
-arch=('x86_64')
-url="https://support.brother.com/g/b/downloadlist.aspx?c=eu_ot&lang=en&prod=dcpl2600d_eu_as&os=127"
-license=('GPL-2.0-only' 'custom:Brother')
-depends=('sane' 'libusb' 'avahi' 'gcc-libs' 'systemd-libs')
-optdepends=('gtk2: for brscan_gnetconfig')
-options=('!strip' '!debug')
-source=("https://download.brother.com/welcome/dlf104036/brscan5-1.8.1-0.x86_64.rpm")
-sha256sums=('a085e529e2193f050f489639c70e19f52afdec7252b2ac5240eaaddec4febdf7')
+#pkgname=brscan5
+#pkgver=1.8.1
+#pkgrel=1
+#pkgdesc="SANE driver from Brother for compatible models"
+#arch=('x86_64')
+#url="https://support.brother.com/g/b/downloadlist.aspx?c=eu_ot&lang=en&prod=dcpl2600d_eu_as&os=127"
+#license=('GPL-2.0-only' 'custom:Brother')
+#depends=('sane' 'libusb' 'avahi' 'gcc-libs' 'systemd-libs')
+#optdepends=('gtk2: for brscan_gnetconfig')
+#options=('!strip' '!debug')
+#source=("https://download.brother.com/welcome/dlf104036/brscan5-1.8.1-0.x86_64.rpm")
+#sha256sums=('a085e529e2193f050f489639c70e19f52afdec7252b2ac5240eaaddec4febdf7')
 
-package() {
-  local dir="$pkgdir/opt/brother/scanner/brscan5"
+#package() {
+#  local dir="$pkgdir/opt/brother/scanner/brscan5"
 
-  cp -r "$srcdir/etc" "$srcdir/opt" "$pkgdir/"
+#  cp -r "$srcdir/etc" "$srcdir/opt" "$pkgdir/"
 
-  # Load the Brother backend in SANE
-  install -d "$pkgdir/etc/sane.d/dll.d"
-  echo "brother5" > "$pkgdir/etc/sane.d/dll.d/brother5.conf"
+#  # Load the Brother backend in SANE
+#  install -d "$pkgdir/etc/sane.d/dll.d"
+#  echo "brother5" > "$pkgdir/etc/sane.d/dll.d/brother5.conf"
 
-  # Mark Brother scanners for SANE, so the logged-in user gets access (uaccess)
-  install -Dm644 "$dir/udev-rules/NN-brother-mfp-brscan5-1.0.2-2.rules" "$pkgdir/usr/lib/udev/rules.d/40-brscan5.rules"
-  sed -i '/SYSFS/d' "$pkgdir/usr/lib/udev/rules.d/40-brscan5.rules"
+#  # Mark Brother scanners for SANE, so the logged-in user gets access (uaccess)
+#  install -Dm644 "$dir/udev-rules/NN-brother-mfp-brscan5-1.0.2-2.rules" "$pkgdir/usr/lib/udev/rules.d/40-brscan5.rules"
+#  sed -i '/SYSFS/d' "$pkgdir/usr/lib/udev/rules.d/40-brscan5.rules"
 
-  # SANE backend
-  install -d "$pkgdir/usr/lib/sane"
-  mv "$dir/libsane-brother5.so.1.0.7" "$pkgdir/usr/lib/sane/"
-  ln -s libsane-brother5.so.1.0.7 "$pkgdir/usr/lib/sane/libsane-brother5.so.1"
-  ln -s libsane-brother5.so.1 "$pkgdir/usr/lib/sane/libsane-brother5.so"
+#  # SANE backend
+#  install -d "$pkgdir/usr/lib/sane"
+#  mv "$dir/libsane-brother5.so.1.0.7" "$pkgdir/usr/lib/sane/"
+#  ln -s libsane-brother5.so.1.0.7 "$pkgdir/usr/lib/sane/libsane-brother5.so.1"
+#  ln -s libsane-brother5.so.1 "$pkgdir/usr/lib/sane/libsane-brother5.so"
 
-  # Libraries used by the backend
-  mv "$dir/libLxBsScanCoreApi.so.3.2.6" "$pkgdir/usr/lib/"
-  ln -s libLxBsScanCoreApi.so.3.2.6 "$pkgdir/usr/lib/libLxBsScanCoreApi.so.3"
-  ln -s libLxBsScanCoreApi.so.3 "$pkgdir/usr/lib/libLxBsScanCoreApi.so"
-  local lib
-  for lib in libLxBsNetDevAccs libLxBsDeviceAccs libLxBsUsbDevAccs; do
-    mv "$dir/$lib.so.1.0.0" "$pkgdir/usr/lib/"
-    ln -s "$lib.so.1.0.0" "$pkgdir/usr/lib/$lib.so.1"
-    ln -s "$lib.so.1" "$pkgdir/usr/lib/$lib.so"
-  done
+#  # Libraries used by the backend
+#  mv "$dir/libLxBsScanCoreApi.so.3.2.6" "$pkgdir/usr/lib/"
+#  ln -s libLxBsScanCoreApi.so.3.2.6 "$pkgdir/usr/lib/libLxBsScanCoreApi.so.3"
+#  ln -s libLxBsScanCoreApi.so.3 "$pkgdir/usr/lib/libLxBsScanCoreApi.so"
+#  local lib
+#  for lib in libLxBsNetDevAccs libLxBsDeviceAccs libLxBsUsbDevAccs; do
+#    mv "$dir/$lib.so.1.0.0" "$pkgdir/usr/lib/"
+#    ln -s "$lib.so.1.0.0" "$pkgdir/usr/lib/$lib.so.1"
+#    ln -s "$lib.so.1" "$pkgdir/usr/lib/$lib.so"
+#  done
 
-  # Tools in /usr/bin, links left in /opt
-  install -d "$pkgdir/usr/bin"
-  local bin
-  for bin in brsaneconfig5 brscan_cnetconfig brscan_gnetconfig setupSaneScan5; do
-    mv "$dir/$bin" "$pkgdir/usr/bin/"
-    ln -s "/usr/bin/$bin" "$dir/$bin"
-  done
+#  # Tools in /usr/bin, links left in /opt
+#  install -d "$pkgdir/usr/bin"
+#  local bin
+#  for bin in brsaneconfig5 brscan_cnetconfig brscan_gnetconfig setupSaneScan5; do
+#    mv "$dir/$bin" "$pkgdir/usr/bin/"
+#    ln -s "/usr/bin/$bin" "$dir/$bin"
+#  done
 
-  install -Dm644 "$dir/doc/LICENSE_ENG.txt" "$pkgdir/usr/share/licenses/$pkgname/LICENSE_ENG.txt"
-}
-EOF
+#  install -Dm644 "$dir/doc/LICENSE_ENG.txt" "$pkgdir/usr/share/licenses/$pkgname/LICENSE_ENG.txt"
+#}
+#EOF
 
 # Give the recipes to the user (makepkg does not run as root)
-arch-chroot -S /mnt chown -R "$USER_NAME:$USER_NAME" "/home/$USER_NAME/pkgbuilds"
+#arch-chroot -S /mnt chown -R "$USER_NAME:$USER_NAME" "/home/$USER_NAME/pkgbuilds"
 
 # Build the Brother driver packages (-f: build again even if a package from an earlier install is there)
-arch-chroot -S -u "$USER_NAME" /mnt makepkg -f --dir "/home/$USER_NAME/pkgbuilds/brother-dcp-l2600d"
-arch-chroot -S -u "$USER_NAME" /mnt makepkg -f --dir "/home/$USER_NAME/pkgbuilds/brscan5"
+#arch-chroot -S -u "$USER_NAME" /mnt makepkg -f --dir "/home/$USER_NAME/pkgbuilds/brother-dcp-l2600d"
+#arch-chroot -S -u "$USER_NAME" /mnt makepkg -f --dir "/home/$USER_NAME/pkgbuilds/brscan5"
 
 # Install the Brother driver packages
-arch-chroot -S /mnt pacman -U --noconfirm \
-  "/home/$USER_NAME/pkgbuilds/brother-dcp-l2600d/brother-dcp-l2600d-4.1.0-2-x86_64.pkg.tar.zst" \
-  "/home/$USER_NAME/pkgbuilds/brscan5/brscan5-1.8.1-1-x86_64.pkg.tar.zst"
+#arch-chroot -S /mnt pacman -U --noconfirm \
+#  "/home/$USER_NAME/pkgbuilds/brother-dcp-l2600d/brother-dcp-l2600d-4.1.0-2-x86_64.pkg.tar.zst" \
+#  "/home/$USER_NAME/pkgbuilds/brscan5/brscan5-1.8.1-1-x86_64.pkg.tar.zst"
 
 # Add the printer to CUPS as the default printer (CUPS runs only for this command)
-arch-chroot -S /mnt bash -c '
-  cupsd -f &
-  until [ -S /run/cups/cups.sock ]; do sleep 0.5; done
-  lpadmin -p "$1" -E -v "$2" -m Brother/brother-DCPL2600D-cups-en.ppd -D "Brother DCP-L2600D" -o printer-is-shared=false
-  lpadmin -d "$1"
-  kill $!
-  wait
-' _ "$PRINTER_NAME" "$PRINTER_URI"
+#arch-chroot -S /mnt bash -c '
+#  cupsd -f &
+#  until [ -S /run/cups/cups.sock ]; do sleep 0.5; done
+#  lpadmin -p "$1" -E -v "$2" -m Brother/brother-DCPL2600D-cups-en.ppd -D "Brother DCP-L2600D" -o printer-is-shared=false
+#  lpadmin -d "$1"
+#  kill $!
+#  wait
+#' _ "$PRINTER_NAME" "$PRINTER_URI"
 
 # ============================================================================
 # DESKTOP (KDE PLASMA)
