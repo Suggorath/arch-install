@@ -33,7 +33,7 @@
 # Bluetooth:  bluez, bluez-utils (bluetoothctl), bluez-obex (file transfer), bluetooth.service, default main.conf
 # Desktop:    KDE Plasma (Wayland), Plasma Login Manager, noto-fonts, keyboard us + sk qwerty (Alt+Shift)
 # NumLock:    on in the text consoles (getty + setleds), at the Plasma login screen and in the Plasma session
-# Apps:       konsole, dolphin, ark (+ 7zip, unrar), kcalc, gwenview, skanpage (OCR slk + eng), firefox
+# Apps:       konsole, dolphin, ark (+ 7zip, unrar), kcalc, gwenview, firefox (OCR slk + eng for Spectacle)
 # Containers: (commented) podman (rootless), podman-compose, short image names from docker.io
 # Editor:     (commented) zed (+ openbsd-netcat), ~/.config/zed/settings.json "use_podman": true
 # Signing:    systemd-boot (.efi.signed) and UKI signed by sbctl, keys backed up to /home/sbctl-keys-backup
@@ -616,18 +616,18 @@ arch-chroot -S /mnt systemctl enable bluetooth.service
 # ============================================================================
 
 # Install the fonts and name the providers pacman would otherwise pick itself
-# (OCR languages for Spectacle and Skanpage: Slovak + English, not the first in the list)
+# (OCR languages for Spectacle: Slovak + English, not the first in the list)
 arch-chroot -S /mnt pacman -S --noconfirm noto-fonts noto-fonts-emoji qt6-multimedia-ffmpeg \
   tesseract-data-slk tesseract-data-eng
 
 # Install Plasma (plasma-desktop pulls the core, the rest chosen in plasma_packages.md)
 arch-chroot -S /mnt pacman -S --noconfirm plasma-desktop kscreen kinfocenter kwallet-pam \
-  breeze-gtk kde-gtk-config plasma-nm plasma-pa bluedevil print-manager plasma-firewall \
+  breeze-gtk kde-gtk-config plasma-nm plasma-pa bluedevil plasma-firewall \
   spectacle plasma-systemmonitor plasma-login-manager
 
-# Install the applications (terminal, files, archives, calculator, images, scanner, browser)
-arch-chroot -S /mnt pacman -S --noconfirm konsole dolphin ark 7zip unrar kcalc gwenview \
-  skanpage firefox
+# Install the applications (terminal, files, archives, calculator, images, browser)
+# (print-manager and skanpage left out while the printer section is commented out)
+arch-chroot -S /mnt pacman -S --noconfirm konsole dolphin ark 7zip unrar kcalc gwenview firefox
 
 # Set the graphical keyboard layouts US + Slovak QWERTY, Alt+Shift switches (also on the login screen)
 mkdir -p /mnt/etc/X11/xorg.conf.d
